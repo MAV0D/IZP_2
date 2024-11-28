@@ -37,14 +37,21 @@ typedef struct Spoint
 	int y;
 } point;
 
+// structure for coordinates of biggest
+typedef struct Sshape
+{
+	point start;
+	point end;
+} shape;
+
 // header declarations
 bitmap *toBitmap(FILE *source);
 int handleThreeArguments(char *args[]);
-int handleCorrestArg(char *arg, bitmap *inputMap);
+int handleCorrectArg(char *arg, bitmap *inputMap);
 int handleTwoArguments(char *arg);
 void dealloc(bitmap *map);
-int findHlineOrVline(bitmap *map, char option);
-int findSquare(bitmap *map);
+shape findHlineOrVline(bitmap *map, char option);
+shape findSquare(bitmap *map);
 bool isSquare(int side, bitmap *map, point start);
 
 int main(int argc, char *argv[])
@@ -54,7 +61,7 @@ int main(int argc, char *argv[])
 	// separating based on number of arguments
 	if (argc < 2 || argc > 3)
 	{
-		fprintf(stderr, "Invalid number of arguments. \n");
+		fprintf(stderr, "Invalid number of arguments. For help, run with argument --help. \n");
 		return 1;
 	}
 	else if (argc == 2)
@@ -87,7 +94,7 @@ bitmap *toBitmap(FILE *source)
 	if (inputSucceeded < 2 || rows < 1 || columns < 1)
 	{
 		newMap->invalidity = 1;
-		return NULL;
+		return newMap;
 	}
 	newMap->numOfRows = rows;
 	newMap->numOfColumns = columns;
@@ -124,26 +131,17 @@ bitmap *toBitmap(FILE *source)
 		}
 	}
 
-	// checking if file has ended, if not, marking bitmap as invalid
-	int temp;
-	inputSucceeded = fscanf(source, "%i", &temp);
-	if (inputSucceeded != -1)
-	{
-		newMap->invalidity = 1;
-		return newMap;
-	}
-
 	newMap->invalidity = 0;
 	return newMap;
 }
 
-// prepares bitmap and checks if argument is valid
+// prepares bitmap and checks if first argument is valid
 int handleThreeArguments(char *args[])
 {
 	// checks if first argument matches with any possible keyword, if not, ends program accordingly
 	if (strcmp(args[1], "hline") && strcmp(args[1], "vline") && strcmp(args[1], "square") && strcmp(args[1], "test"))
 	{
-		fprintf(stderr, "Invalid arguments.\n");
+		fprintf(stderr, "Invalid arguments. For help, run with argument --help. \n");
 		return 1;
 	}
 
@@ -163,7 +161,6 @@ int handleThreeArguments(char *args[])
 	if (inputMap == NULL)
 	{
 		fprintf(stderr, "Error allocating memory. ");
-		dealloc(inputMap);
 		return 3;
 	}
 	if (inputMap->invalidity)
@@ -174,36 +171,40 @@ int handleThreeArguments(char *args[])
 	}
 
 	// calls specific function if setup was successful
-	int returnCode = handleCorrestArg(args[1], inputMap);
+	int returnCode = handleCorrectArg(args[1], inputMap);
 
 	dealloc(inputMap);
 	return returnCode;
 }
 
-// calls specific function based on argument
-int handleCorrestArg(char *arg, bitmap *inputMap)
+// calls specific function on bitmap based on argument
+int handleCorrectArg(char *arg, bitmap *inputMap)
 {
-	int returnCode;
+	shape biggest;
 
 	if (!strcmp(arg, "hline"))
 	{
-		returnCode = findHlineOrVline(inputMap, 'h');
+		biggest = findHlineOrVline(inputMap, 'h');
 	}
 	else if (!strcmp(arg, "vline"))
 	{
-		returnCode = findHlineOrVline(inputMap, 'v');
+		biggest = findHlineOrVline(inputMap, 'v');
 	}
 	else if (!strcmp(arg, "square"))
 	{
-		returnCode = findSquare(inputMap);
+		biggest = findSquare(inputMap);
 	}
 	else
 	{
 		printf("Valid");
-		returnCode = 0;
+		return 0;
 	}
+	if (biggest.start.x != -1)
+		printf("%i %i %i %i\n", biggest.start.x, biggest.start.y, biggest.end.x, biggest.end.y);
+	else
+		printf("Not found\n");
 
-	return returnCode;
+	return 0;
 }
 
 // handles calls of program with two arguments (prints help for --help)
@@ -216,7 +217,7 @@ int handleTwoArguments(char *arg)
 	}
 	else
 	{
-		fprintf(stderr, "Invalid argument.\n");
+		fprintf(stderr, "Invalid argument. For help, run with argument --help. \n");
 		return 1;
 	}
 }
@@ -230,13 +231,13 @@ void dealloc(bitmap *map)
 	free(map);
 }
 
-// finds longest line horizontally (option == 'h') or vertically (option == 'v'), prints start and end points of it
-int findHlineOrVline(bitmap *map, char option)
+// finds longest line in bitmap horizontally (option == 'h') or vertically (option == 'v'), 
+// returns start and end points of it
+shape findHlineOrVline(bitmap *map, char option)
 {
-	int maxLenght = 1;
+	int maxLenght = 0;
 	int currentLenght = 0;
-	point beginningOfLongest;
-	point endOfLongest;
+	shape longest = {{-1, -1}, {-1, -1}};
 	point beginningOfCurrent;
 	point currentPoint;
 
@@ -260,37 +261,33 @@ int findHlineOrVline(bitmap *map, char option)
 			}
 			// if line is longer than previous longest or is same size, but starts earlier (lower row, than lower column)
 			if (currentLenght > maxLenght ||
-					(currentLenght == maxLenght && beginningOfCurrent.x < beginningOfLongest.x))
+					(currentLenght == maxLenght && beginningOfCurrent.x < longest.start.x))
 			{
 				maxLenght = currentLenght;
-				beginningOfLongest = beginningOfCurrent;
+				longest.start = beginningOfCurrent;
 				*primaryCoord -= 1; // off by one because while increments it one more time before stopping
-				endOfLongest = currentPoint;
+				longest.end = currentPoint;
+			}
+			// stops iterating if it cant find any longer line
+			if (maxLenght == *primaryDirectionSize)
+			{
+				return longest;
 			}
 			currentLenght = 0;
 		}
 	}
 
-	// if no line is found (no pixels or only points)
-	if (maxLenght < 2)
-	{
-		printf("Not found");
-		return 0;
-	}
-
-	printf("%i %i %i %i\n", beginningOfLongest.x, beginningOfLongest.y, endOfLongest.x, endOfLongest.y);
-	return 0;
+	return longest;
 }
 
-// finds biggest outline of square regardless of the inside, prints start (top left) and end (bottom right) points of if
-int findSquare(bitmap *map)
+// finds biggest outline of square in bitmap, returns start (top left) and end (bottom right) points of if
+shape findSquare(bitmap *map)
 {
-	int maxSide = 1;
-	point beginningOfBiggest;
-	point endOfBiggest;
+	int maxSide = 0;
+	shape biggestSquare = {{-1, -1}, {-1, -1}};
 	point currentPoint;
 
-	// loops through whole map, stops when no bigger square can be found
+	// loops through whole map until no bigger square can be found
 	for (currentPoint.x = 0; currentPoint.x < map->numOfRows - maxSide; currentPoint.x++)
 	{
 		for (currentPoint.y = 0; currentPoint.y < map->numOfColumns - maxSide; currentPoint.y++)
@@ -315,9 +312,9 @@ int findSquare(bitmap *map)
 						if (currentSide > maxSide)
 						{
 							maxSide = currentSide;
-							beginningOfBiggest = currentPoint;
-							endOfBiggest.x = currentPoint.x + currentSide;
-							endOfBiggest.y = currentPoint.y + currentSide;
+							biggestSquare.start = currentPoint;
+							biggestSquare.end.x = currentPoint.x + currentSide;
+							biggestSquare.end.y = currentPoint.y + currentSide;
 						}
 						break;
 					}
@@ -326,16 +323,10 @@ int findSquare(bitmap *map)
 		}
 	}
 
-	// if no line is found (no pixels or only points)
-	if (maxSide < 2)
-		printf("Not found");
-	else
-		printf("%i %i %i %i\n", beginningOfBiggest.x, beginningOfBiggest.y, endOfBiggest.x, endOfBiggest.y);
-
-	return 0;
+	return biggestSquare;
 }
 
-// returns true if square is found starting at point start of side lenght side
+// returns true if square is found starting at point start (square of side lenght side)
 bool isSquare(int side, bitmap *map, point start)
 {
 	point offset = {0, 0};
@@ -364,6 +355,6 @@ bool isSquare(int side, bitmap *map, point start)
 			return false;
 	}
 
-	// returns true if every pixel was one
+	// returns true if every pixel was one (black)
 	return true;
 }
