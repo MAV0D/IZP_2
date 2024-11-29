@@ -300,8 +300,8 @@ shape findHlineOrVline(bitmap *map, char option)
 // returns start (top left) and end (bottom right) points of if
 shape findSquare(bitmap *map)
 {
-	int maxSide = -1;
-	int maxPossibleSide;
+	int maxSide = 0;
+	bool found = 0;
 	shape biggestSquare = {{-1, -1}, {-1, -1}};
 	point currentPoint;
 
@@ -314,23 +314,29 @@ shape findSquare(bitmap *map)
 			// on failure tries smaller squares, on success goes to next pixel
 			if (map->image[currentPoint.x][currentPoint.y])
 			{
-				// calcuates maximum side lenght of square by substracting current coords from size of map
-				// and than using the lower one
-
-				// TODO PREDELAT (od nejmensiho)
-				int maxPossibleSideX, maxPossibleSideY;
-				maxPossibleSideX = map->numOfRows - currentPoint.x - 1;
-				maxPossibleSideY = map->numOfColumns - currentPoint.y - 1;
-				maxPossibleSide = maxPossibleSideX < maxPossibleSideY ? maxPossibleSideX : maxPossibleSideY;
+				// calcuates maximum side lenght of square based on lenght of vertical and horizontal lines
+				// begining in that point
+				int maxPossibleSide = 0;
+				while (map->image[currentPoint.x + maxPossibleSide][currentPoint.y] &&
+							 map->image[currentPoint.x][currentPoint.y + maxPossibleSide])
+				{
+					maxPossibleSide++;
+					if (currentPoint.x + maxPossibleSide >= map->numOfRows)
+						break;
+					if (currentPoint.y + maxPossibleSide >= map->numOfColumns)
+						break;
+				}
+				maxPossibleSide--;
 
 				// tries to find biggest square possible
-				for (int currentSide = maxPossibleSide; currentSide > maxSide; currentSide--)
+				for (int currentSide = maxPossibleSide; currentSide >= maxSide; currentSide--)
 				{
 					if (isSquare(currentSide, map, currentPoint))
 					{
 						// overides biggest square if bigger is found
-						if (currentSide > maxSide)
+						if (currentSide > maxSide || (maxSide == 0 && !found))
 						{
+							found = 1;
 							maxSide = currentSide;
 							biggestSquare.start = currentPoint;
 							biggestSquare.end.x = currentPoint.x + currentSide;
