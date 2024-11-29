@@ -16,10 +16,14 @@
 #define HELP "Usage: .\\figsearch [option] <input-file>\n\n\
 Options:\n\
     --help		prints help message and exits\n\
-    hline <file>	finds first longest horizontal line and prints its start and end coordinates to stdout\n\
-    vline <file>	finds first longest vertical line and prints its start and end coordinates to stdout\n\
-    square <file>	finds first biggest square outline and prints its start and end coordinates to stdout\n\
-    test <file>		prints \"Valid\" to stdout if given file containts valid bitmap, prints \"Invalid to stdout otherwise\"\n"
+    hline <file>	finds first longest horizontal line and prints \
+its start and end coordinates to stdout\n\
+    vline <file>	finds first longest vertical line and prints its \
+start and end coordinates to stdout\n\
+    square <file>	finds first biggest square outline and prints its \
+start and end coordinates to stdout\n\
+    test <file>		prints \"Valid\" to stdout if given file containts \
+valid bitmap, prints \"Invalid\" to stdout otherwise\n"
 
 // structure for storing information about image
 typedef struct Sbitmap
@@ -37,7 +41,7 @@ typedef struct Spoint
 	int y;
 } point;
 
-// structure for coordinates of biggest
+// structure for pair of coordinates of biggest shape found
 typedef struct Sshape
 {
 	point start;
@@ -47,7 +51,7 @@ typedef struct Sshape
 // header declarations
 bitmap *toBitmap(FILE *source);
 int handleThreeArguments(char *args[]);
-int handleCorrectArg(char *arg, bitmap *inputMap);
+void handleCorrectArg(char *arg, bitmap *inputMap);
 int handleTwoArguments(char *arg);
 void dealloc(bitmap *map);
 shape findHlineOrVline(bitmap *map, char option);
@@ -91,6 +95,8 @@ bitmap *toBitmap(FILE *source)
 
 	// scanning and verifying dimensions of bitmap
 	inputSucceeded = fscanf(source, "%i %i", &rows, &columns);
+
+	// inputSucceeded < 2 means that rows or columns weren't succesfully read from input
 	if (inputSucceeded < 2 || rows < 1 || columns < 1)
 	{
 		newMap->invalidity = 1;
@@ -106,6 +112,8 @@ bitmap *toBitmap(FILE *source)
 		dealloc(newMap);
 		return NULL;
 	}
+
+	// allocation of each row
 	for (int i = 0; i < rows; i++)
 	{
 		newMap->image[i] = malloc(columns * sizeof(int));
@@ -116,14 +124,15 @@ bitmap *toBitmap(FILE *source)
 		}
 	}
 
-	// reading input values form source stream
+	// reading input values from source file
 	for (int i = 0; i < rows; i++)
 	{
 		for (int j = 0; j < columns; j++)
 		{
 			inputSucceeded = fscanf(source, "%i", &newMap->image[i][j]);
-			// verifying of scaned number and source stream persistence, terminating scaning otherwise
-			if (inputSucceeded == -1 || newMap->image[i][j] > 1 || newMap->image[i][j] < 0)
+			// verifying of scaned number, terminating scaning otherwise (if scanned character was not
+			// whitespace or 0 or 1)
+			if (inputSucceeded != 1 || newMap->image[i][j] > 1 || newMap->image[i][j] < 0)
 			{
 				newMap->invalidity = 1;
 				return newMap;
@@ -139,7 +148,8 @@ bitmap *toBitmap(FILE *source)
 int handleThreeArguments(char *args[])
 {
 	// checks if first argument matches with any possible keyword, if not, ends program accordingly
-	if (strcmp(args[1], "hline") && strcmp(args[1], "vline") && strcmp(args[1], "square") && strcmp(args[1], "test"))
+	if (strcmp(args[1], "hline") && strcmp(args[1], "vline") &&
+			strcmp(args[1], "square") && strcmp(args[1], "test"))
 	{
 		fprintf(stderr, "Invalid arguments. For help, run with argument --help. \n");
 		return 1;
@@ -158,12 +168,14 @@ int handleThreeArguments(char *args[])
 
 	fclose(srcFile);
 
-	if (inputMap == NULL)
+	// checks if allocation succeeded and argument isn't test
+	if (inputMap == NULL && strcmp(args[1], "test"))
 	{
 		fprintf(stderr, "Error allocating memory. ");
 		return 3;
 	}
-	if (inputMap->invalidity)
+	// checks if allocation failed and argument is test or bitmap is invalid
+	if (inputMap == NULL || inputMap->invalidity)
 	{
 		fprintf(stderr, "Invalid");
 		dealloc(inputMap);
@@ -171,14 +183,14 @@ int handleThreeArguments(char *args[])
 	}
 
 	// calls specific function if setup was successful
-	int returnCode = handleCorrectArg(args[1], inputMap);
+	handleCorrectArg(args[1], inputMap);
 
 	dealloc(inputMap);
-	return returnCode;
+	return 0;
 }
 
 // calls specific function on bitmap based on argument
-int handleCorrectArg(char *arg, bitmap *inputMap)
+void handleCorrectArg(char *arg, bitmap *inputMap)
 {
 	shape biggest;
 
@@ -197,14 +209,16 @@ int handleCorrectArg(char *arg, bitmap *inputMap)
 	else
 	{
 		printf("Valid");
-		return 0;
+		return;
 	}
+
+	// prints coordinates if given shape was found, prints not found otherwise
 	if (biggest.start.x != -1)
 		printf("%i %i %i %i\n", biggest.start.x, biggest.start.y, biggest.end.x, biggest.end.y);
 	else
 		printf("Not found\n");
 
-	return 0;
+	return;
 }
 
 // handles calls of program with two arguments (prints help for --help)
@@ -231,7 +245,7 @@ void dealloc(bitmap *map)
 	free(map);
 }
 
-// finds longest line in bitmap horizontally (option == 'h') or vertically (option == 'v'), 
+// finds longest line in bitmap horizontally (option == 'h') or vertically (option == 'v'),
 // returns start and end points of it
 shape findHlineOrVline(bitmap *map, char option)
 {
@@ -247,7 +261,8 @@ shape findHlineOrVline(bitmap *map, char option)
 	int *primaryDirectionSize = option == 'v' ? &map->numOfRows : &map->numOfColumns;
 	int *secondaryDirectionSize = option == 'v' ? &map->numOfColumns : &map->numOfRows;
 
-	// going through all coordinates and finding longest line from each, evaluating it and skipping to end of it
+	// going through all coordinates and finding longest line from each,
+	// evaluating it and skipping to end of it
 	for ((*secondaryCoord) = 0; (*secondaryCoord) < *secondaryDirectionSize; (*secondaryCoord)++)
 	{
 		for ((*primaryCoord) = 0; (*primaryCoord) < *primaryDirectionSize; (*primaryCoord)++)
@@ -259,7 +274,8 @@ shape findHlineOrVline(bitmap *map, char option)
 				currentLenght++;
 				(*primaryCoord)++;
 			}
-			// if line is longer than previous longest or is same size, but starts earlier (lower row, than lower column)
+			// if line is longer than previous longest or is same size,
+			// but starts earlier (lower row, then lower column)
 			if (currentLenght > maxLenght ||
 					(currentLenght == maxLenght && beginningOfCurrent.x < longest.start.x))
 			{
@@ -280,10 +296,12 @@ shape findHlineOrVline(bitmap *map, char option)
 	return longest;
 }
 
-// finds biggest outline of square in bitmap, returns start (top left) and end (bottom right) points of if
+// finds biggest outline of square in bitmap,
+// returns start (top left) and end (bottom right) points of if
 shape findSquare(bitmap *map)
 {
-	int maxSide = 0;
+	int maxSide = -1;
+	int maxPossibleSide;
 	shape biggestSquare = {{-1, -1}, {-1, -1}};
 	point currentPoint;
 
@@ -298,10 +316,12 @@ shape findSquare(bitmap *map)
 			{
 				// calcuates maximum side lenght of square by substracting current coords from size of map
 				// and than using the lower one
-				point maxPossibleSides;
-				maxPossibleSides.x = map->numOfRows - currentPoint.x - 1;
-				maxPossibleSides.y = map->numOfColumns - currentPoint.y - 1;
-				int maxPossibleSide = maxPossibleSides.x < maxPossibleSides.y ? maxPossibleSides.x : maxPossibleSides.y;
+
+				// TODO PREDELAT (od nejmensiho)
+				int maxPossibleSideX, maxPossibleSideY;
+				maxPossibleSideX = map->numOfRows - currentPoint.x - 1;
+				maxPossibleSideY = map->numOfColumns - currentPoint.y - 1;
+				maxPossibleSide = maxPossibleSideX < maxPossibleSideY ? maxPossibleSideX : maxPossibleSideY;
 
 				// tries to find biggest square possible
 				for (int currentSide = maxPossibleSide; currentSide > maxSide; currentSide--)
@@ -333,24 +353,28 @@ bool isSquare(int side, bitmap *map, point start)
 	// checks down from starting point to side lenght, return false if checked pixel is 0
 	for (offset.x = 0; offset.x < side; offset.x++)
 	{
-		if (start.x + offset.x < map->numOfRows && map->image[start.x + offset.x][start.y + offset.y] == 0)
+		// checks each pixel
+		if (map->image[start.x + offset.x][start.y + offset.y] == 0)
 			return false;
 	}
 	// checks pixel right from last checked pixel to side lenght
 	for (offset.y = 0; offset.y < side; offset.y++)
 	{
-		if (start.y + offset.y < map->numOfColumns && map->image[start.x + offset.x][start.y + offset.y] == 0)
+		// checks each pixel
+		if (map->image[start.x + offset.x][start.y + offset.y] == 0)
 			return false;
 	}
 	// checks pixel up from last checked pixel to offset 0 on x axis
 	for (; offset.x > 0; offset.x--)
 	{
+		// checks each pixel
 		if (map->image[start.x + offset.x][start.y + offset.y] == 0)
 			return false;
 	}
 	// checks pixel left from last checked pixel to start point
 	for (; offset.y > 0; offset.y--)
 	{
+		// checks each pixel
 		if (map->image[start.x + offset.x][start.y + offset.y] == 0)
 			return false;
 	}
